@@ -30,7 +30,6 @@ class Command(BaseCommand):
                 json_file = json.loads(f.read())
                 slug = json_file['product']['category'][0]['slug']
                 urls[slug]=('https://ispace.kz/api/aktau/apr/catalog/products/category/iphone/'+slug+'?iscorp=0')
-
         return urls
 
     def create_products(self,data):
@@ -38,13 +37,15 @@ class Command(BaseCommand):
         for child in data['categories']['children']:
             slug = child.get('slug', '')
             name = child.get('name', '')
-            url = child.get('url', '')
+            # url = child.get('url', '')
             discount = child.get('discount', 0)
+
             product = Product(category_id=category_id,
                             slug=slug,
                             name=name,
-                            url = url,
+                            # url = url,
                             discount=discount)
+
             product.save()
 
     def create_product_items(self,item, url):
@@ -69,13 +70,13 @@ class Command(BaseCommand):
         display = specification['Дисплей']['Размер дисплея']
         del specification["Память"]
 
-
         data = requests.get(url)
         iphones:list = data.json()['products']['data']
+
         for iphone in iphones:
             name = iphone['name']
             memory = iphone['configuration']
-            price = iphone['prices']['price']
+            price = float(iphone['prices']['price'])
 
             try:
                 color = iphone['name'].split(', ')[2]
@@ -104,6 +105,8 @@ class Command(BaseCommand):
                 for latin, cyrillic in replacements.items():
                     memory = memory.replace(latin, cyrillic)
                 memory_option = AttributeOption.objects.get(option_name=memory)
+                display_option = AttributeOption.objects.get(option_name=display)
+                product_item.attribute.add(memory_option, display_option)
 
 #filter by Camera, Memory, Display
 # delete only Memory block
