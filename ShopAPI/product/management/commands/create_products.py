@@ -78,12 +78,18 @@ class Command(BaseCommand):
             memory = iphone['configuration']
             price = float(iphone['prices']['price'])
 
+            # update
+            item_slug = iphone['slug']
+            sku = iphone['sku']
+
             try:
                 color = iphone['name'].split(', ')[2]
             except:
                 continue
 
             product_item = ProductItem(product_id=product_id,
+                                slug=item_slug,
+                                sku=sku,
                                 name=name,
                                 color=color,
                                 weight=weight,

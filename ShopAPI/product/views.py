@@ -9,9 +9,11 @@ from rest_framework import filters
 from .filters import ProductItemFilter
 from .serializers import *
 from .models import *
+
 # Create your views here.
 
-class ProductItemsByCategory(APIView):
+# All Products by Category
+class ProductByCategory(APIView):
     def get(self, request, slug):
         category = Category.objects.get(slug=slug)
 
@@ -29,52 +31,50 @@ class ProductItemsByCategory(APIView):
             'header&footer': header
         })
 
-# here filters might be implemented
-# class SearchProducts(APIView):
-#     def get(self, request, slug):
-#         category = Category.objects.get(slug=slug)
+class ItemsByProducts(generics.ListAPIView):
+    pass
 
-#         breadcrumbs = CategorySerializer(category).data
-
-#         products = ProductItem.objects.select_related('product_id__category_id').\
-#             filter(product_id__category_id__slug=slug)
-
-#         products_data = ProductItemSerializer(products, many=True).data
-
-#         filter = AttributeType.objects.all()
-#         filter_data = FilterSerializer(filter, many=True).data
-
-#         return Response(
-#             {
-#                 'breadcrumbs': breadcrumbs,
-#                 'products': products_data,
-#                 'filter': filter_data
-#             })
-
-class AllProductsItemsByCategory(generics.ListAPIView):
+# all products are given, people can seaarch and filter
+class SearchAndFilterProductItems(generics.ListAPIView):
     serializer_class = ProductItemSerializer
     filterset_class = ProductItemFilter
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     search_fields = ['name', 'color']
     def get_queryset(self):
-        # slug = self.kwargs['slug']
         return ProductItem.objects.all()
-        #select_related('product_id__category_id').\
-            #filter(product_id__category_id__slug=slug)
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
 
-        # slug = self.kwargs['slug']
-        # category = Category.objects.get(slug=slug)
-        # breadcrumbs = CategorySerializer(category).data
-
         filter = AttributeType.objects.all()
         filter_data = FilterSerializer(filter, many=True).data
 
+        header = HeaderFooterSerializer(Product.objects.all()).data
+
         return Response({
-            # 'breadcrumbs': breadcrumbs,
             'filter': filter_data,
             'products': serializer.data,
+            'header&footer': header
+        })
+
+# Retrieve a Product Item Cart Separately with an ability to switch colors and memory
+class RetrieveProductItem(generics.RetrieveAPIView):
+
+    serializer_class = FullProductItemSerializer
+
+    def get_object(self):
+        return ProductItem.objects.get(slug=self.kwargs['item_slug'])
+
+    def retrieve(self, request, *args, **kwargs):
+        query_set = self.get_object()
+        product = self.get_serializer(query_set).data
+
+        parent = self.kwargs['product_slug']
+        family = Product.objects.get(slug=parent).items.all()
+        family_data = ShortProductItemSerializer(family, many=True).data
+
+        return Response({
+            'product': product,
+            'family': family_data
         })

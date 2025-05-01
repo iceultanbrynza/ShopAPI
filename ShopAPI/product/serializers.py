@@ -20,24 +20,8 @@ class ProductSerializer(serializers.ModelSerializer):
         )
 
 class ProductItemSerializer(serializers.ModelSerializer):
-    class AttributeOptionSerializer(serializers.ModelSerializer):
-        class Meta:
-            model = AttributeOption
-            fields = ('option_name',)
-
-    # attribute_filter = serializers.SerializerMethodField()
-    # attribute_sort = serializers.SerializerMethodField()
     configuration = serializers.SerializerMethodField()
 
-    # def get_attribute_filter(self, obj):
-    #     attrs = obj.attribute.values_list('type_id', flat=True).distinct()
-    #     return attrs
-    # def get_attribute_sort(self, obj):
-    #     attrs = self.get_attribute_filter(obj)
-    #     response = {}
-    #     for attr in attrs:
-    #         response[attr] = [option for option in AttributeOption.objects.values_list('option_name', flat=True).filter(type_id=attr)]
-    #     return response
     def get_configuration(self, obj):
         return obj.attribute\
            .filter(type_id = 1)\
@@ -51,11 +35,9 @@ class ProductItemSerializer(serializers.ModelSerializer):
             'name',
             'color',
             'configuration',
-            # 'weight',
             'price',
             'discount',
-            'availability',
-            # 'specification'
+            'availability'
         )
 
 class HeaderFooterSerializer(serializers.ModelSerializer):
@@ -88,3 +70,50 @@ class FilterSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttributeType
         fields = ('id', 'type', 'row')
+
+class FullProductItemSerializer(serializers.ModelSerializer):
+    attributes = serializers.SerializerMethodField()
+    configuration = serializers.SerializerMethodField()
+
+    def get_configuration(self, obj):
+        return obj.attribute\
+           .filter(type_id = 'storage')\
+           .values_list('option_name', flat=True)\
+           .first()
+    def get_attributes(self, obj:ProductItem):
+        return {option.type_id.type: option.option_name for option in obj.attribute.all()}
+
+    class Meta:
+        model = ProductItem
+        fields = (
+            'product_id',
+            'name',
+            'color',
+            'weight',
+            'configuration',
+            'price',
+            'discount',
+            'availability',
+            'attributes',
+            'specification'
+        )
+
+class ShortProductItemSerializer(serializers.ModelSerializer):
+    configuration = serializers.SerializerMethodField()
+
+    def get_configuration(self, obj):
+        return obj.attribute\
+           .filter(type_id = 1)\
+           .values_list('option_name', flat=True)\
+           .first()
+
+    class Meta:
+        model = ProductItem
+        fields = (
+            'name',
+            'color',
+            'configuration',
+            'price',
+            'discount',
+            'availability'
+        )

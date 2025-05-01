@@ -42,6 +42,8 @@ class Product(models.Model):
 
 class ProductItem(models.Model):
     id = models.AutoField(primary_key=True)
+    slug = models.SlugField(unique=True)
+    sku=models.CharField(max_length=20)
 
     product_id = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='items')
 
