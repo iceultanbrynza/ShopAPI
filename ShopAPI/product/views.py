@@ -31,8 +31,19 @@ class ProductByCategory(APIView):
             'header&footer': header
         })
 
+# iphone/iphone-13/
 class ItemsByProducts(generics.ListAPIView):
-    pass
+    serializer_class = ShortProductItemSerializer
+    queryset = Product.objects.all()
+    lookup_field = 'slug'
+    lookup_url_kwarg = 'product_slug'
+
+    def list(self, request, *args, **kwargs):
+        product: Product = self.get_object()
+        queryset = product.items.all()
+        serializer = self.get_serializer(queryset, many=True)
+
+        return Response(serializer.data)
 
 # all products are given, people can seaarch and filter
 class SearchAndFilterProductItems(generics.ListAPIView):
@@ -40,6 +51,7 @@ class SearchAndFilterProductItems(generics.ListAPIView):
     filterset_class = ProductItemFilter
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     search_fields = ['name', 'color']
+
     def get_queryset(self):
         return ProductItem.objects.all()
 
@@ -59,8 +71,8 @@ class SearchAndFilterProductItems(generics.ListAPIView):
         })
 
 # Retrieve a Product Item Cart Separately with an ability to switch colors and memory
+# iphone/iphone-13/iphone-13-black-128GB
 class RetrieveProductItem(generics.RetrieveAPIView):
-
     serializer_class = FullProductItemSerializer
 
     def get_object(self):
@@ -74,7 +86,32 @@ class RetrieveProductItem(generics.RetrieveAPIView):
         family = Product.objects.get(slug=parent).items.all()
         family_data = ShortProductItemSerializer(family, many=True).data
 
+        category_slug = self.kwargs['category_slug']
+        category_name = query_set.product_id.name
+        product_name = query_set.product_id.category_id.name
+        product_slug = self.kwargs['product_slug']
+        slug = query_set.slug
+        name = query_set.name
+        breadcrumbs = [
+            {
+                "name": category_name,
+                "slug": category_slug
+            },
+            {
+                "name": product_name,
+                "slug": product_slug
+            },
+            {
+                "name": name,
+                "slug": slug
+            }
+        ]
+
+        header = HeaderFooterSerializer(Product.objects.all()).data
+
         return Response({
+            'breadcrumbs': breadcrumbs,
             'product': product,
-            'family': family_data
+            'family': family_data,
+            'header&footer': header
         })

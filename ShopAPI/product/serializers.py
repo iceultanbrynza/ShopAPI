@@ -103,7 +103,7 @@ class ShortProductItemSerializer(serializers.ModelSerializer):
 
     def get_configuration(self, obj):
         return obj.attribute\
-           .filter(type_id = 1)\
+           .filter(type_id = 'storage')\
            .values_list('option_name', flat=True)\
            .first()
 
