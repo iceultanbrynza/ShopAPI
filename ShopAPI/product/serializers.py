@@ -6,8 +6,8 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = (
-            'slug',
-            'name'
+            'name',
+            'slug'
         )
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -15,8 +15,7 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = (
             'slug',
-            'name',
-            'discount'
+            'name'
         )
 
 class ProductItemSerializer(serializers.ModelSerializer):
@@ -24,7 +23,7 @@ class ProductItemSerializer(serializers.ModelSerializer):
 
     def get_configuration(self, obj):
         return obj.attribute\
-           .filter(type_id = 1)\
+           .filter(type_id = 'storage')\
            .values_list('option_name', flat=True)\
            .first()
 

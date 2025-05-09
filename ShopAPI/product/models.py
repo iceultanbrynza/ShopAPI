@@ -2,6 +2,7 @@ from django.db import models
 
 
 # Create your models here.
+
 class AttributeType(models.Model):
     id = models.CharField(max_length=50, primary_key=True)
     type = models.CharField(max_length=15)
@@ -40,10 +41,19 @@ class Product(models.Model):
     def __str__(self):
         return f"{self.name}"
 
+def upload_to(instance, filename):
+    slug = instance.product_items.first().\
+            product_id.slug
+    return f'{slug}/{filename}'
+
+class Image(models.Model):
+    id = models.AutoField(primary_key=True)
+    image = models.ImageField(upload_to=upload_to, blank=True, null=True)
+
 class ProductItem(models.Model):
     id = models.AutoField(primary_key=True)
-    slug = models.SlugField(unique=True)
-    sku=models.CharField(max_length=20)
+    slug = models.SlugField(unique=True, max_length=100)
+    sku=models.CharField(max_length=100)
 
     product_id = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='items')
 
@@ -55,14 +65,11 @@ class ProductItem(models.Model):
     availability = models.PositiveSmallIntegerField(default=1)
 
     attribute = models.ManyToManyField(AttributeOption, related_name='product_items')
+    image = models.ManyToManyField(Image, related_name='product_items')
     specification = models.JSONField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.name},{self.attribute.all()}"
-
-class Image(models.Model):
-    product_item_id = models.ForeignKey(ProductItem, on_delete=models.CASCADE)
-    image = models.ImageField()
 
 # fullfilment
 # triggers for slugs

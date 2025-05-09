@@ -1,6 +1,7 @@
 import json, os, requests
 from django.core.management.base import BaseCommand
-from ...models import Product, ProductItem, Category, AttributeOption
+from django.core.files.base import ContentFile
+from ...models import Product, ProductItem, Category, AttributeOption, Image
 
 class Command(BaseCommand):
     help = 'Импортирует продукты из JSON'
@@ -8,16 +9,21 @@ class Command(BaseCommand):
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         product_path = os.path.join(base_dir, 'dataset', 'product.json')
         iphones_path = os.path.join(base_dir, 'dataset', 'iphone_items')
+        base_image_url = 'https://cdn0.ipoint.kz/AfrOrF3gWeDA6VOlDG4TzxMv39O7MXnF4CXpKUwGqRM/resize:fit:230/bg:fff/plain/s3://'
+        ending = '@webp'
 
         urls = self.create_urls(base_dir)
-
+        print('Overall', urls)
         with open(product_path, encoding='utf-8') as f:
             data1 = json.load(f)
-        self.create_products(data1)
+        # self.create_products(data1)
         for iphone in os.listdir(iphones_path):
             with open(os.path.join(iphones_path, iphone), encoding='utf-8') as f:
+                # data2 is url to particular product item. Since all product items
+                # within one product share the same specification
+                # we can use the only one as a sample
                 data2 = json.load(f)
-                self.create_product_items(data2, url=urls[data2['product']['category'][0]['slug']])
+                self.create_product_items(data2, urls[data2['product']['category'][0]['slug']], base_image_url, ending)
 
         self.stdout.write(self.style.SUCCESS('Продукты импортированы'))
     def create_urls(self, basedir)->dict:
@@ -48,7 +54,7 @@ class Command(BaseCommand):
 
             product.save()
 
-    def create_product_items(self,item, url):
+    def create_product_items(self,item, url, base_image_url, ending):
         # dataset/iphone_items are data for one particular model (models differs by color and memory)
         # from each group (iphone-16, iphone-16-pro, etc.). Since all iPhone models within one
         # group share the same characteristics, I used these data for retrieving characteristics.
@@ -72,7 +78,7 @@ class Command(BaseCommand):
 
         data = requests.get(url)
         iphones:list = data.json()['products']['data']
-
+        print('Product Item: ',url)
         for iphone in iphones:
             name = iphone['name']
             memory = iphone['configuration']
@@ -113,6 +119,25 @@ class Command(BaseCommand):
                 memory_option = AttributeOption.objects.get(option_name=memory)
                 display_option = AttributeOption.objects.get(option_name=display)
                 product_item.attribute.add(memory_option, display_option)
+
+            image = iphone['image']
+            image_url = base_image_url + image + ending
+            try:
+                print(color)
+                image = Image.objects.get(image=f'{slug}/{color}.jpg')
+                product_item.image.add(image)
+            except:
+                self.download_and_attach_image(product_item, image_url, color + '.jpg')
+
+    def download_and_attach_image(self, product_item, image_url, filename):
+        response = requests.get(image_url)
+        if response.status_code == 200:
+            image = Image()
+            image.save()
+            product_item.image.add(image)
+            image.image.save(filename, ContentFile(response.content), save=True)
+        else:
+            print(f"Не удалось скачать изображение: {image_url}")
 
 #filter by Camera, Memory, Display
 # delete only Memory block

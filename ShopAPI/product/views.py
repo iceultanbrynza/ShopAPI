@@ -43,7 +43,18 @@ class ItemsByProducts(generics.ListAPIView):
         queryset = product.items.all()
         serializer = self.get_serializer(queryset, many=True)
 
-        return Response(serializer.data)
+        category_breadcrumb = CategorySerializer(product.category_id).data
+        product_breadcrumb = ProductSerializer(product).data
+        breadcrumbs = [category_breadcrumb,
+                       product_breadcrumb]
+
+        header = HeaderFooterSerializer(Product.objects.all()).data
+
+        return Response({'breadcrumbs': breadcrumbs,
+                        'products': serializer.data,
+                        'header&footer': header
+                        }
+                    )
 
 # all products are given, people can seaarch and filter
 class SearchAndFilterProductItems(generics.ListAPIView):
