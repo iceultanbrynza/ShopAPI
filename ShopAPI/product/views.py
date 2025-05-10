@@ -53,8 +53,7 @@ class ItemsByProducts(generics.ListAPIView):
         return Response({'breadcrumbs': breadcrumbs,
                         'products': serializer.data,
                         'header&footer': header
-                        }
-                    )
+        })
 
 # all products are given, people can search and filter
 class SearchAndFilterProductItems(generics.ListAPIView):
@@ -107,8 +106,8 @@ class RetrieveProductItem(generics.RetrieveAPIView):
         product = self.get_serializer(query_set).data
 
         parent = self.kwargs['product_slug']
-        family = Product.objects.get(slug=parent).items.all()
-        family_data = ShortProductItemSerializer(family, many=True).data
+        familyset = Product.objects.get(slug=parent).items.all()
+        family = ShortProductItemSerializer(family, many=True).data
 
         category_slug = self.kwargs['category_slug']
         category_name = query_set.product_id.name
@@ -136,6 +135,6 @@ class RetrieveProductItem(generics.RetrieveAPIView):
         return Response({
             'breadcrumbs': breadcrumbs,
             'product': product,
-            'family': family_data,
+            'family': family,
             'header&footer': header
         })
