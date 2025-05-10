@@ -106,6 +106,7 @@ class Command(BaseCommand):
     def add_attributes_for_macs(self, item_data, product_item:ProductItem):
         # We need different function for Macs and iPads because they have
         # slightly different JSON's for attributes
+        Mac = Category.objects.get(name='Mac')
         print('attributes')
         storage = item_data['product']['configuration']
         cpu = item_data['product']['attributes']['Процессор']['Процессор']
@@ -123,10 +124,10 @@ class Command(BaseCommand):
         ram_type=AttributeType.objects.get(type='ram')
 
         try:
-            storage_option, _ = AttributeOption.objects.get_or_create(option_name=storage, type_id = storage_type)
-            display_option, _ = AttributeOption.objects.get_or_create(option_name=display, type_id = display_type)
-            cpu_option, _ = AttributeOption.objects.get_or_create(option_name=cpu, type_id = cpu_type)
-            ram_option, _ = AttributeOption.objects.get_or_create(option_name=ram, type_id = ram_type)
+            storage_option, _ = AttributeOption.objects.get_or_create(option_name=storage, type_id = storage_type, category_id=Mac)
+            display_option, _ = AttributeOption.objects.get_or_create(option_name=display, type_id = display_type,category_id=Mac)
+            cpu_option, _ = AttributeOption.objects.get_or_create(option_name=cpu, type_id = cpu_type,category_id=Mac)
+            ram_option, _ = AttributeOption.objects.get_or_create(option_name=ram, type_id = ram_type,category_id=Mac)
             product_item.attribute.add(storage_option,
                                         display_option,
                                         cpu_option,
@@ -138,20 +139,21 @@ class Command(BaseCommand):
                 'TB': 'ТБ'}
             for latin, cyrillic in replacements.items():
                 storage = storage.replace(latin, cyrillic)
-            storage_option, _ = AttributeOption.objects.get_or_create(option_name=storage, type_id = storage_type)
-            display_option, _ = AttributeOption.objects.get_or_create(option_name=display, type_id = display_type)
-            cpu_option, _ = AttributeOption.objects.get_or_create(option_name=cpu, type_id = cpu_type)
-            ram_option, _ = AttributeOption.objects.get_or_create(option_name=ram, type_id = ram_type)
+            storage_option, _ = AttributeOption.objects.get_or_create(option_name=storage, type_id = storage_type,category_id=Mac)
+            display_option, _ = AttributeOption.objects.get_or_create(option_name=display, type_id = display_type,category_id=Mac)
+            cpu_option, _ = AttributeOption.objects.get_or_create(option_name=cpu, type_id = cpu_type,category_id=Mac)
+            ram_option, _ = AttributeOption.objects.get_or_create(option_name=ram, type_id = ram_type,category_id=Mac)
             product_item.attribute.add(storage_option,
                                         display_option,
                                         cpu_option,
                                         ram_option)
 
     def add_attributes_for_ipads(self, item_data, product_item:ProductItem):
+        iPad = Category.objects.get(name='iPad')
         storage = item_data['product']['configuration'].split('  / ')[0]
         storage_type = AttributeType.objects.get(type='storage')
         try:
-            storage_option, _ = AttributeOption.objects.get_or_create(option_name=storage, type_id = storage_type)
+            storage_option, _ = AttributeOption.objects.get_or_create(category_id=iPad,option_name=storage, type_id = storage_type)
             product_item.attribute.add(storage_option)
         except:
             replacements = {
@@ -159,7 +161,7 @@ class Command(BaseCommand):
                 'TB': 'ТБ'}
             for latin, cyrillic in replacements.items():
                 storage = storage.replace(latin, cyrillic)
-            storage_option, _ = AttributeOption.objects.get_or_create(option_name=storage, type_id = storage_type)
+            storage_option, _ = AttributeOption.objects.get_or_create(category_id=iPad,option_name=storage, type_id = storage_type)
             product_item.attribute.add(storage_option)
 
     def create_urls_for_product_items(self, base_url, device:str)->dict:

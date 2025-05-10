@@ -3,21 +3,6 @@ from django.db import models
 
 # Create your models here.
 
-class AttributeType(models.Model):
-    id = models.CharField(max_length=50, primary_key=True)
-    type = models.CharField(max_length=15)
-
-    def __str__(self):
-        return f"{self.type}"
-    #display
-
-class AttributeOption(models.Model):
-    type_id = models.ForeignKey(AttributeType, on_delete=models.CASCADE, related_name='options')
-    option_name = models.CharField(max_length=255, unique=True)
-
-    def __str__(self):
-        return f"{self.option_name}"
-
 class Category(models.Model):
     id = models.AutoField(primary_key=True) #for internal connections
     slug = models.SlugField(unique=True)
@@ -40,6 +25,24 @@ class Product(models.Model):
 
     def __str__(self):
         return f"{self.name}"
+
+class AttributeType(models.Model):
+    id = models.CharField(max_length=50, primary_key=True)
+    type = models.CharField(max_length=15)
+
+    def __str__(self):
+        return f"{self.type}"
+
+class AttributeOption(models.Model):
+    type_id = models.ForeignKey(AttributeType, on_delete=models.CASCADE, related_name='options')
+    category_id = models.ForeignKey(Category, on_delete=models.CASCADE,related_name='options', blank=True, null=True)
+    option_name = models.CharField(max_length=255)
+
+    class Meta:
+        unique_together = ('option_name', 'type_id', 'category_id')
+
+    def __str__(self):
+        return f"{self.category_id.name}: {self.option_name}"
 
 def upload_to(instance, filename):
     slug = instance.product_items.first().\

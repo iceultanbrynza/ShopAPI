@@ -7,9 +7,13 @@ class ProductItemFilter(FilterSet):
         fields = {
             'price': ['exact', 'range']
         }
-
+    # pseudo-fields:
+    pfilter = CharFilter(method='primary_filter')
     storage = CharFilter(method='filter_storage')
     display = CharFilter(method='filter_display')
+
+    def primary_filter(self, queryset, name, value):
+        return queryset.filter(product_id__category_id__slug = value)
 
     def filter_storage(self, queryset, name, value):
         return queryset.filter(attribute__type_id = 'storage',

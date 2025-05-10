@@ -64,7 +64,12 @@ class FilterSerializer(serializers.ModelSerializer):
             model = AttributeOption
             fields = ('type_id', 'option_name')
 
-    row = OptionSerializer(many=True, source='options')
+    row = serializers.SerializerMethodField()
+
+    def get_row(self, obj):
+        category = self.context.get('category')
+        qs = AttributeOption.objects.filter(category_id__slug=category,type_id=obj)
+        return self.OptionSerializer(qs, many=True).data
 
     class Meta:
         model = AttributeType

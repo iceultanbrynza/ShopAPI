@@ -14,13 +14,13 @@ from .models import *
 
 # All Products by Category
 class ProductByCategory(APIView):
-    def get(self, request, slug):
-        category = Category.objects.get(slug=slug)
+    def get(self, request, category_slug):
+        category = Category.objects.get(slug=category_slug)
 
         breadcrumbs = CategorySerializer(category).data
 
         products = Product.objects.select_related('category_id')\
-                    .filter(category_id__slug=slug)
+                    .filter(category_id__slug=category_slug)
         products_data = ProductSerializer(products, many=True).data
 
         header = HeaderFooterSerializer(Product.objects.all()).data
@@ -56,7 +56,7 @@ class ItemsByProducts(generics.ListAPIView):
                         }
                     )
 
-# all products are given, people can seaarch and filter
+# all products are given, people can search and filter
 class SearchAndFilterProductItems(generics.ListAPIView):
     serializer_class = ProductItemSerializer
     filterset_class = ProductItemFilter
@@ -70,13 +70,26 @@ class SearchAndFilterProductItems(generics.ListAPIView):
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
 
-        filter = AttributeType.objects.all()
-        filter_data = FilterSerializer(filter, many=True).data
+        categories = Category.objects.all()
+        primary_filter = CategorySerializer(categories, many=True).data
 
         header = HeaderFooterSerializer(Product.objects.all()).data
 
+        pfilter = self.request.query_params.get('pfilter', None)
+        if pfilter is not None:
+            filter = AttributeType.objects.prefetch_related('options', 'options__category_id').\
+                    filter(options__category_id__slug=pfilter).distinct()
+
+            filter_data = FilterSerializer(filter, many=True, context={'category': pfilter}).data
+
+            return Response({
+                'filter': filter_data,
+                'products': serializer.data,
+                'header&footer': header
+            })
+
         return Response({
-            'filter': filter_data,
+            'primary_filter': primary_filter,
             'products': serializer.data,
             'header&footer': header
         })
