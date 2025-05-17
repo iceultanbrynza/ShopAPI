@@ -107,7 +107,7 @@ class RetrieveProductItem(generics.RetrieveAPIView):
 
         parent = self.kwargs['product_slug']
         familyset = Product.objects.get(slug=parent).items.all()
-        family = ShortProductItemSerializer(family, many=True).data
+        family = ShortProductItemSerializer(familyset, many=True).data
 
         category_slug = self.kwargs['category_slug']
         category_name = query_set.product_id.name

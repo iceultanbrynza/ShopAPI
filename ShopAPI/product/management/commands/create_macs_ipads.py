@@ -2,8 +2,11 @@ import json
 import os
 import requests
 import re
+
 from django.core.management.base import BaseCommand
-from ...models import Product, ProductItem, Category, AttributeOption, AttributeType
+from django.core.files.base import ContentFile
+
+from ...models import Product, ProductItem, Category, AttributeOption, AttributeType, Image
 
 class Command(BaseCommand):
     help = 'Импортирует продукты из JSON'
@@ -49,14 +52,16 @@ class Command(BaseCommand):
             product.save()
 
     def product_items_handler(self):
+        base_url = 'https://ispace.kz/api/almaty/apr/catalog/products/category'
+        item_base_url = 'https://ispace.kz/api/apr/catalog/products'
+        base_image_url = 'https://cdn0.ipoint.kz/AfrOrF3gWeDA6VOlDG4TzxMv39O7MXnF4CXpKUwGqRM/resize:fit:230/bg:fff/plain/s3://'
+        ending = '@webp'
         print('for mac:\n')
-        self.create_product_items('mac')
+        self.create_product_items('mac',base_url,item_base_url,base_image_url,ending)
         # print('for ipad:\n')
         # self.create_product_items('ipad')
 
-    def create_product_items(self, device:str):
-        base_url = 'https://ispace.kz/api/almaty/apr/catalog/products/category'
-        item_base_url = 'https://ispace.kz/api/apr/catalog/products'
+    def create_product_items(self, device:str, base_url, item_base_url, base_image_url, ending):
         urls = self.create_urls_for_product_items(base_url, device)
         print(urls)
         for slug, url in urls.items():
@@ -99,15 +104,15 @@ class Command(BaseCommand):
                 product_item.save()
                 print('product item is saved')
                 if device == 'mac':
-                    self.add_attributes_for_macs(item_data, product_item)
+                    self.add_attributes_for_macs(item_data, product_item, product.slug, color,base_image_url, ending)
                 if device == 'ipad':
                     self.add_attributes_for_ipads(item_data, product_item)
 
-    def add_attributes_for_macs(self, item_data, product_item:ProductItem):
+    def add_attributes_for_macs(self, item_data, product_item:ProductItem, product_slug, color, base_image_url, ending):
         # We need different function for Macs and iPads because they have
         # slightly different JSON's for attributes
         Mac = Category.objects.get(name='Mac')
-        print('attributes')
+
         storage = item_data['product']['configuration']
         cpu = item_data['product']['attributes']['Процессор']['Процессор']
 
@@ -122,6 +127,31 @@ class Command(BaseCommand):
         display_type = AttributeType.objects.get(type='display')
         cpu_type=AttributeType.objects.get(type='cpu')
         ram_type=AttributeType.objects.get(type='ram')
+
+        # Image Handling
+        # Images can be assigned by groups: M1, M2, M3-M4.
+        # The only attributes that affect the photo is color and display
+        # memory, CPU do not affect
+        # to save space we can reuse photos for a bunch of models
+        images = {
+            'thumbnail': [item_data['product']['image']],
+            'gallery': item_data['product']['images']
+        }
+        for type, urls in images.items():
+            cnt = 0
+            for url in urls:
+                cnt+=1
+                if url is None:
+                    break
+                filename = f'{product_slug}/{type}/{'_'.join(cpu.split()[:2])}/{display.replace('"', '')}/{color.replace(' ', '_')}/{cnt}.jpg'
+                # image = Image.objects.get(image=f'{product_slug}/{type}/{display}/{color}.jpg', type=type)
+                image = Image.objects.filter(image=filename, type=type).first()
+                print(image)
+                if image is not None:
+                    product_item.image.add(image)
+                else:
+                    image_url = base_image_url + url + ending
+                    self.download_and_attach_image(type, product_item, image_url, f'{type}/{'_'.join(cpu.split()[:2])}/{display.replace('"', '')}/{color.replace(' ', '_')}/{cnt}.jpg')
 
         try:
             storage_option, _ = AttributeOption.objects.get_or_create(option_name=storage, type_id = storage_type, category_id=Mac)
@@ -147,6 +177,16 @@ class Command(BaseCommand):
                                         display_option,
                                         cpu_option,
                                         ram_option)
+
+    def download_and_attach_image(self, type:str, product_item, image_url, filename):
+        response = requests.get(image_url)
+        if response.status_code == 200:
+            image = Image(type=type)
+            image.save()
+            product_item.image.add(image)
+            image.image.save(filename, ContentFile(response.content), save=True)
+        else:
+            print(f"Не удалось скачать изображение: {image_url}")
 
     def add_attributes_for_ipads(self, item_data, product_item:ProductItem):
         iPad = Category.objects.get(name='iPad')

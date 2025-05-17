@@ -50,7 +50,12 @@ def upload_to(instance, filename):
     return f'{slug}/{filename}'
 
 class Image(models.Model):
+    IMAGE_TYPES = (
+        ('thumbnail', 'Thumbnail'),
+        ('gallery', 'Gallery'),
+    )
     id = models.AutoField(primary_key=True)
+    type = models.CharField(max_length=20, choices=IMAGE_TYPES, default='thumbnail')
     image = models.ImageField(upload_to=upload_to, blank=True, null=True)
 
 class ProductItem(models.Model):
