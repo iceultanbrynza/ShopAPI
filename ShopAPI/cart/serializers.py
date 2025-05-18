@@ -59,6 +59,7 @@ class CartCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         items_data = validated_data.pop('cart_items')
+        print(validated_data)
         request = self.context['request']
         user = request.user if request.user.is_authenticated else None
         session_key = request.session.session_key
@@ -68,7 +69,6 @@ class CartCreateSerializer(serializers.ModelSerializer):
             cart, _ = Cart.objects.get_or_create(session_key=session_key)
 
         for item in items_data:
-            print(item)
             product_item = item['product_item']
             amount = item['amount']
             cart_item, created = CartItem.objects.get_or_create(cart=cart,product_item=product_item)

@@ -114,6 +114,7 @@ class ShortProductItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductItem
         fields = (
+            'id',
             'slug',
             'name',
             'color',
