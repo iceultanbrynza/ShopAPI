@@ -42,6 +42,7 @@ class ProductItemSerializer(serializers.ModelSerializer):
 class HeaderFooterSerializer(serializers.ModelSerializer):
     iphones = serializers.SerializerMethodField()
     macs = serializers.SerializerMethodField()
+    ipads = serializers.SerializerMethodField()
 
     def get_iphones(self, obj):
         iphones = Product.objects.filter(category_id=1).values_list('name', flat=True)
@@ -51,11 +52,16 @@ class HeaderFooterSerializer(serializers.ModelSerializer):
         macs = Product.objects.filter(category_id=2).values_list('name', flat=True)
         return list(macs)
 
+    def get_ipads(self, obj):
+        ipads = Product.objects.filter(category_id=3).values_list('name', flat=True)
+        return list(ipads)
+
     class Meta:
         model = Product
         fields = (
             'iphones',
-            'macs'
+            'macs',
+            'ipads'
         )
 
 class FilterSerializer(serializers.ModelSerializer):

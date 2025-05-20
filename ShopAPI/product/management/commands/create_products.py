@@ -1,147 +1,301 @@
-import json, os, requests
+import json
+import os
+import requests
+import re
+
 from django.core.management.base import BaseCommand
 from django.core.files.base import ContentFile
-from ...models import Product, ProductItem, Category, AttributeOption, Image, AttributeType
+from django.db import connection
+
+from ...models import Product, ProductItem, Category, AttributeOption, AttributeType, Image
 
 class Command(BaseCommand):
     help = 'Импортирует продукты из JSON'
     def handle(self, *args, **kwargs):
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        product_path = os.path.join(base_dir, 'dataset', 'product.json')
-        iphones_path = os.path.join(base_dir, 'dataset', 'iphone_items')
-        base_image_url = 'https://cdn0.ipoint.kz/AfrOrF3gWeDA6VOlDG4TzxMv39O7MXnF4CXpKUwGqRM/resize:fit:230/bg:fff/plain/s3://'
-        ending = '@webp'
+        # self.create_categories()
+        # self.create_attributes_for_filtering()
+        # self.create_products()
+        self.product_items_handler()
 
-        urls = self.create_urls(base_dir)
-        print('Overall', urls)
-        with open(product_path, encoding='utf-8') as f:
-            data1 = json.load(f)
-        # self.create_products(data1)
-        for iphone in os.listdir(iphones_path):
-            with open(os.path.join(iphones_path, iphone), encoding='utf-8') as f:
-                # data2 is url to particular product item. Since all product items
-                # within one product share the same specification
-                # we can use the only one as a sample
-                data2 = json.load(f)
-                self.create_product_items(data2, urls[data2['product']['category'][0]['slug']], base_image_url, ending)
+    def reset_autoincrement(self, model):
+        table_name = model._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(f"ALTER TABLE {table_name} AUTO_INCREMENT = 1")
 
-        self.stdout.write(self.style.SUCCESS('Продукты импортированы'))
-    def create_urls(self, basedir)->dict:
-        urls = {}
+    def create_categories(self):
+        Category.objects.all().delete()
+        self.reset_autoincrement(Category)
+        Category.objects.create(slug='iphone', name='iPhone')
+        Category.objects.create(slug='mac', name='Mac')
+        Category.objects.create(slug='ipad', name='iPad')
 
-        path = os.path.join(basedir, 'dataset', 'iphone_items')
+    def create_attributes_for_filtering(self):
+        storage = AttributeType(id='storage',type='storage')
+        storage.save()
+        display = AttributeType(id='display',type='display')
+        display.save()
+        ram = AttributeType(id='ram',type='RAM')
+        ram.save()
+        cpu = AttributeType(id='cpu',type='CPU')
+        cpu.save()
 
-        for item in os.listdir(path):
-            with open(os.path.join(path,item), 'r') as f:
-                json_file = json.loads(f.read())
-                slug = json_file['product']['category'][0]['slug']
-                urls[slug]=('https://ispace.kz/api/aktau/apr/catalog/products/category/iphone/'+slug+'?iscorp=0')
-        return urls
+    def create_products(self):
+        base_url = 'https://ispace.kz/api/catalog/categories'
+        response = requests.get(base_url).json()
+        iphone_block = response[1]
+        mac_block = response[2]
+        ipad_block = response[3]
 
-    def create_products(self,data):
-        category_id = Category.objects.get(id=1)
-        for child in data['categories']['children']:
-            slug = child.get('slug', '')
-            name = child.get('name', '')
-            # url = child.get('url', '')
-            discount = child.get('discount', 0)
+        # range to avoid non-required positions such as Services-for-<device>
+        iphones = iphone_block['children'][:11]
+        macs = mac_block['children'][:3]
+        ipads = ipad_block['children'][:4]
 
-            product = Product(category_id=category_id,
-                            slug=slug,
-                            name=name,
-                            # url = url,
-                            discount=discount)
+        self.instantiate_model(iphone_block, iphones)
+        self.instantiate_model(mac_block, macs)
+        self.instantiate_model(ipad_block, ipads)
 
+    def instantiate_model(self, block, devices):
+        for device in devices:
+            slug = device['url'].split('/')[1]
+            category_id = Category.objects.get(name=block['name'].split(' ')[0])
+            name_list = re.findall(r'\b[a-zA-Z]+\b', device['name'])
+            name = ' '.join(name_list)
+            discount = 0
+            product = Product.objects.create(slug=slug,
+                                            category_id=category_id,
+                                            name=name,
+                                            discount=discount)
             product.save()
 
-    def create_product_items(self,item, url, base_image_url, ending):
-        # dataset/iphone_items are data for one particular model (models differs by color and memory)
-        # from each group (iphone-16, iphone-16-pro, etc.). Since all iPhone models within one
-        # group share the same characteristics, I used these data for retrieving characteristics.
-        # the only thing that is differs from one model to another is memory.
-        # price depends on memory only.
-        # in order to obtain particular price for each possible memory that group could possibly have,
-        # I use group data set, where it has 'data' about each model that belongs to this group
-        # along with its memory and price
+    def product_items_handler(self):
+        base_url = 'https://ispace.kz/api/almaty/apr/catalog/products/category'
+        item_base_url = 'https://ispace.kz/api/apr/catalog/products'
+        base_image_url = 'https://cdn0.ipoint.kz/AfrOrF3gWeDA6VOlDG4TzxMv39O7MXnF4CXpKUwGqRM/resize:fit:230/bg:fff/plain/s3://'
+        ending = '@webp'
+        print('for iphones:\n')
+        self.create_product_items('iphone',base_url,item_base_url,base_image_url,ending)
+        # print('for mac:\n')
+        # self.create_product_items('mac',base_url,item_base_url,base_image_url,ending)
+        # print('for ipad:\n')
+        # self.create_product_items('ipad',base_url,item_base_url,base_image_url,ending)
+
+    def create_product_items(self, device:str, base_url, item_base_url, base_image_url, ending):
+        urls = self.create_urls_for_product_items(base_url, device)
+        print(urls)
+        for slug, url in urls.items():
+            product = Product.objects.get(slug=slug)
+            response = requests.get(url).json()
+            dataset = response['products']['data']
+            for data in dataset:
+                slug = data['slug']
+                sku = data['sku']
+                product_id = product
+                name = data['name']
+                color = data['name'].split(', ')[-1]
+
+                weight = data['weight']
+                price = float(data['prices']['price'])
+                discount = 0
+
+                # url inside that lead to product item card from product request
+                # when all product items related to exact product are fetched
+                url = item_base_url + '/' + data['url']
+                print(url)
+                print(requests.get(url))
+                item_data = requests.get(url).json()
+                specification = item_data['product']['attributes']
+                availability = 1
+                print(name + ' is fetched')
+                #parse again using url from json for each item, because each
+                # item even belonging to a single product has its own specification.
+                try:
+                    product_item = ProductItem(
+                        slug=slug,
+                        sku=sku,
+                        product_id=product_id,
+                        name=name,
+                        color=color,
+                        weight=weight,
+                        price=price,
+                        discount=discount,
+                        availability=availability,
+                        specification=specification
+                    )
+                    product_item.save()
+                except:
+                    continue
+                
+                print('product item is saved')
+                if device == 'iphone':
+                    self.add_attributes_for_iphones(item_data, product_item, product, color, base_image_url, ending)
+                if device == 'mac':
+                    self.add_attributes_for_macs(item_data, product_item, product.slug, color, base_image_url, ending)
+                if device == 'ipad':
+                    series = specification['Технические характеристики']['Серия и семейство']
+                    self.add_attributes_for_ipads(item_data, product_item, product.slug, series, color, base_image_url, ending)
+
+    def add_attributes_for_iphones(self, item_data, product_item, product, color, base_image_url, ending):
         iPhone = Category.objects.get(name='iPhone')
-        product = item['product']
+        memory = item_data['product']['configuration']
+        display = item_data['product']['attributes']['Дисплей']['Размер дисплея']
+        storage_type = AttributeType.objects.get(type='storage')
+        display_type = AttributeType.objects.get(type='display')
+        replacements = {
+                'GB': 'ГБ',
+                'TB': 'ТБ'}
+        for latin, cyrillic in replacements.items():
+            memory = memory.replace(latin, cyrillic)
+        memory_option, _= AttributeOption.objects.get_or_create(type_id=storage_type,
+                                                            category_id=iPhone,
+                                                            option_name=memory)
+        display_option, _ = AttributeOption.objects.get_or_create(type_id=display_type,
+                                                            category_id=iPhone,
+                                                            option_name=display)
+        product_item.attribute.add(memory_option, display_option)
 
-        slug = item['category']['slug']
-        product_id = Product.objects.get(slug=slug)
+        images = {
+            'thumbnail': [item_data['product']['image']],
+            'gallery': item_data['product']['images']
+        }
+        for type, urls in images.items():
+            cnt = 0
+            for url in urls:
+                cnt+=1
+                if url is None:
+                    break
+                filename = f'{product.slug}/{type}/{display.replace('"', '')}/{color.replace(' ', '_')}/{cnt}.jpg'
+                image = Image.objects.filter(image=filename, type=type).first()
+                if image is not None:
+                    product_item.image.add(image)
+                else:
+                    image_url = base_image_url + url + ending
+                    self.download_and_attach_image(type, product_item, image_url, f'{type}/{display.replace('"', '')}/{color.replace(' ', '_')}/{cnt}.jpg')
 
-        weight = product['weight']
-        discount = 0
-        availability = 1
-        specification = product['attributes']
-        display = specification['Дисплей']['Размер дисплея']
-        del specification["Память"]
+    def add_attributes_for_macs(self, item_data, product_item:ProductItem, product_slug, color, base_image_url, ending):
+        # We need different function for Macs and iPads because they have
+        # slightly different JSON's for attributes
+        Mac = Category.objects.get(name='Mac')
 
-        data = requests.get(url)
-        iphones:list = data.json()['products']['data']
-        print('Product Item: ',url)
-        for iphone in iphones:
-            name = iphone['name']
-            memory = iphone['configuration']
-            price = float(iphone['prices']['price'])
+        storage = item_data['product']['configuration']
+        cpu = item_data['product']['attributes']['Процессор']['Процессор']
 
-            # update
-            item_slug = iphone['slug']
-            sku = iphone['sku']
+        try:
+            ram = item_data['product']['attributes']['Память']['Объём оперативной памяти']
+            display = item_data['product']['attributes']['Дисплей']['Диагональ экрана']
+        except:
+            ram = item_data['product']['attributes']['Память']['Емкость установленной оперативной памяти']
+            display = item_data['product']['attributes']['Дисплей']['Видимая диагональ экрана']
 
-            try:
-                color = iphone['name'].split(', ')[2]
-            except:
-                continue
+        storage_type = AttributeType.objects.get(type='storage')
+        display_type = AttributeType.objects.get(type='display')
+        cpu_type=AttributeType.objects.get(type='cpu')
+        ram_type=AttributeType.objects.get(type='ram')
 
-            product_item = ProductItem(product_id=product_id,
-                                slug=item_slug,
-                                sku=sku,
-                                name=name,
-                                color=color,
-                                weight=weight,
-                                price=price,
-                                discount=discount,
-                                availability=availability,
-                                specification=specification)
+        # Image Handling
+        # Images can be assigned by groups: M1, M2, M3-M4.
+        # The only attributes that affect the photo is color and display
+        # memory, CPU do not affect
+        # to save space we can reuse photos for a bunch of models
+        images = {
+            'thumbnail': [item_data['product']['image']],
+            'gallery': item_data['product']['images']
+        }
+        for type, urls in images.items():
+            cnt = 0
+            for url in urls:
+                cnt+=1
+                if url is None:
+                    break
+                filename = f'{product_slug}/{type}/{'_'.join(cpu.split()[:2])}/{display.replace('"', '')}/{color.replace(' ', '_')}/{cnt}.jpg'
+                # image = Image.objects.get(image=f'{product_slug}/{type}/{display}/{color}.jpg', type=type)
+                image = Image.objects.filter(image=filename, type=type).first()
+                print(image)
+                if image is not None:
+                    product_item.image.add(image)
+                else:
+                    image_url = base_image_url + url + ending
+                    self.download_and_attach_image(type, product_item, image_url, f'{type}/{'_'.join(cpu.split()[:2])}/{display.replace('"', '')}/{color.replace(' ', '_')}/{cnt}.jpg')
 
-            product_item.save()
+        try:
+            storage_option, _ = AttributeOption.objects.get_or_create(option_name=storage, type_id = storage_type, category_id=Mac)
+            display_option, _ = AttributeOption.objects.get_or_create(option_name=display, type_id = display_type,category_id=Mac)
+            cpu_option, _ = AttributeOption.objects.get_or_create(option_name=cpu, type_id = cpu_type,category_id=Mac)
+            ram_option, _ = AttributeOption.objects.get_or_create(option_name=ram, type_id = ram_type,category_id=Mac)
+            product_item.attribute.add(storage_option,
+                                        display_option,
+                                        cpu_option,
+                                        ram_option)
 
-            # Working with Attributes
-            storage_type = AttributeType.objects.get(type='storage')
-            display_type = AttributeType.objects.get(type='display')
-
+        except:
             replacements = {
-                    'GB': 'ГБ',
-                    'TB': 'ТБ'}
+                'GB': 'ГБ',
+                'TB': 'ТБ'}
             for latin, cyrillic in replacements.items():
-                memory = memory.replace(latin, cyrillic)
-            memory_option, _= AttributeOption.objects.get_or_create(type_id=storage_type,
-                                                                category_id=iPhone,
-                                                                option_name=memory)
-            display_option, _ = AttributeOption.objects.get_or_create(type_id=display_type,
-                                                                category_id=iPhone,
-                                                                option_name=display)
-            product_item.attribute.add(memory_option, display_option)
+                storage = storage.replace(latin, cyrillic)
+            storage_option, _ = AttributeOption.objects.get_or_create(option_name=storage, type_id = storage_type,category_id=Mac)
+            display_option, _ = AttributeOption.objects.get_or_create(option_name=display, type_id = display_type,category_id=Mac)
+            cpu_option, _ = AttributeOption.objects.get_or_create(option_name=cpu, type_id = cpu_type,category_id=Mac)
+            ram_option, _ = AttributeOption.objects.get_or_create(option_name=ram, type_id = ram_type,category_id=Mac)
+            product_item.attribute.add(storage_option,
+                                        display_option,
+                                        cpu_option,
+                                        ram_option)
 
-            # Working with Images
-            image = iphone['image']
-            image_url = base_image_url + image + ending
-            try:
-                print(color)
-                image = Image.objects.get(image=f'{slug}/{color}.jpg')
-                product_item.image.add(image)
-            except:
-                self.download_and_attach_image(product_item, image_url, color + '.jpg')
+    def add_attributes_for_ipads(self, item_data, product_item:ProductItem, product_slug, series, color, base_image_url, ending):
+        iPad = Category.objects.get(name='iPad')
 
-    def download_and_attach_image(self, product_item, image_url, filename):
+        # Image handling
+        # iPads within the same family and color share the same pictures
+        # name convention: media/<family>/<color>/
+        images = {
+            'thumbnail': [item_data['product']['image']],
+            'gallery': item_data['product']['images']
+        }
+
+        for type, urls in images.items():
+            cnt = 0
+            for url in urls:
+                cnt+=1
+                if url is None:
+                    break
+                filename = f'{product_slug}/{type}/{series.replace(' ', '_')}/{color.replace(' ', '_')}/{cnt}.jpg'
+                image = Image.objects.filter(image=filename, type=type).first()
+                print(image)
+                if image is not None:
+                    product_item.image.add(image)
+                else:
+                    image_url = base_image_url + url + ending
+                    self.download_and_attach_image(type, product_item, image_url, f'{type}/{series.replace(' ', '_')}/{color.replace(' ', '_')}/{cnt}.jpg')
+
+        storage = item_data['product']['configuration'].split('  / ')[0]
+        storage_type = AttributeType.objects.get(type='storage')
+        try:
+            storage_option, _ = AttributeOption.objects.get_or_create(category_id=iPad,option_name=storage, type_id = storage_type)
+            product_item.attribute.add(storage_option)
+        except:
+            replacements = {
+                'GB': 'ГБ',
+                'TB': 'ТБ'}
+            for latin, cyrillic in replacements.items():
+                storage = storage.replace(latin, cyrillic)
+            storage_option, _ = AttributeOption.objects.get_or_create(category_id=iPad,option_name=storage, type_id = storage_type)
+            product_item.attribute.add(storage_option)
+
+    def download_and_attach_image(self, type:str, product_item, image_url, filename):
         response = requests.get(image_url)
         if response.status_code == 200:
-            image = Image()
+            image = Image(type=type)
             image.save()
             product_item.image.add(image)
             image.image.save(filename, ContentFile(response.content), save=True)
         else:
             print(f"Не удалось скачать изображение: {image_url}")
 
-#filter by Camera, Memory, Display
-# delete only Memory block
+    def create_urls_for_product_items(self, base_url, device:str)->dict:
+        urls={}
+        url = base_url + '/' + device
+        products = Product.objects.filter(category_id__slug=device).values_list('slug', flat=True)
+        for product in products:
+            urls[product] = url + '/' + product
+        return urls
