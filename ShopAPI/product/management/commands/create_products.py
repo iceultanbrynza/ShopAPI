@@ -12,9 +12,9 @@ from ...models import Product, ProductItem, Category, AttributeOption, Attribute
 class Command(BaseCommand):
     help = 'Импортирует продукты из JSON'
     def handle(self, *args, **kwargs):
-        # self.create_categories()
-        # self.create_attributes_for_filtering()
-        # self.create_products()
+        self.create_categories()
+        self.create_attributes_for_filtering()
+        self.create_products()
         self.product_items_handler()
 
     def reset_autoincrement(self, model):
@@ -75,10 +75,10 @@ class Command(BaseCommand):
         ending = '@webp'
         print('for iphones:\n')
         self.create_product_items('iphone',base_url,item_base_url,base_image_url,ending)
-        # print('for mac:\n')
-        # self.create_product_items('mac',base_url,item_base_url,base_image_url,ending)
-        # print('for ipad:\n')
-        # self.create_product_items('ipad',base_url,item_base_url,base_image_url,ending)
+        print('for mac:\n')
+        self.create_product_items('mac',base_url,item_base_url,base_image_url,ending)
+        print('for ipad:\n')
+        self.create_product_items('ipad',base_url,item_base_url,base_image_url,ending)
 
     def create_product_items(self, device:str, base_url, item_base_url, base_image_url, ending):
         urls = self.create_urls_for_product_items(base_url, device)
@@ -125,7 +125,7 @@ class Command(BaseCommand):
                     product_item.save()
                 except:
                     continue
-                
+
                 print('product item is saved')
                 if device == 'iphone':
                     self.add_attributes_for_iphones(item_data, product_item, product, color, base_image_url, ending)
