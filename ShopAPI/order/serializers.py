@@ -59,8 +59,8 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         print(items)
         phone_number = validated_data.pop('phone_number')
         address = validated_data.pop('address', None)
-        payment_method = validated_data.pop('payment_method')
-        delivery_method = validated_data.pop('delivery_method')
+        payment_method = validated_data.pop('payment_method', Order.OrderPayment.CARD)
+        delivery_method = validated_data.pop('delivery_method',Order.OrderDelivery.DELIVERY)
 
         total_price = 0
 

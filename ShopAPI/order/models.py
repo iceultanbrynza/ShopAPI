@@ -36,6 +36,9 @@ class Order(models.Model):
     delivery_method = models.CharField(choices=OrderDelivery.choices, default=OrderDelivery.PICKUP, max_length=8)
     status = models.CharField(choices=OrderStatus.choices, default=OrderStatus.PENDING, max_length=10)
 
+    def __str__(self):
+        return f"{self.user.username} - {self.status}"
+
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name='items', on_delete=models.CASCADE)
     product_item = models.ForeignKey(ProductItem, on_delete=models.PROTECT)
