@@ -22,10 +22,7 @@ class ProductItemSerializer(serializers.ModelSerializer):
     configuration = serializers.SerializerMethodField()
 
     def get_configuration(self, obj):
-        return obj.attribute\
-           .filter(type_id = 'storage')\
-           .values_list('option_name', flat=True)\
-           .first()
+        return obj.name.split(', ')[1]
 
     class Meta:
         model = ProductItem
@@ -44,17 +41,23 @@ class HeaderFooterSerializer(serializers.ModelSerializer):
     macs = serializers.SerializerMethodField()
     ipads = serializers.SerializerMethodField()
 
-    def get_iphones(self, obj):
-        iphones = Product.objects.filter(category_id=1).values_list('name', flat=True)
-        return list(iphones)
+    def to_representation(self, instance):
+        devices = Product.objects.all().values('name', 'category_id')
+        iphones, macs, ipads = [], [], []
 
-    def get_macs(self, obj):
-        macs = Product.objects.filter(category_id=2).values_list('name', flat=True)
-        return list(macs)
+        for device in devices:
+            if device['category_id'] == 1:
+                iphones.append(device['name'])
+            if device['category_id'] == 2:
+                macs.append(device['name'])
+            if device['category_id'] == 3:
+                ipads.append(device['name'])
 
-    def get_ipads(self, obj):
-        ipads = Product.objects.filter(category_id=3).values_list('name', flat=True)
-        return list(ipads)
+        return {
+            'iphones': iphones,
+            'macs': macs,
+            'ipads': ipads
+        }
 
     class Meta:
         model = Product
@@ -73,9 +76,11 @@ class FilterSerializer(serializers.ModelSerializer):
     row = serializers.SerializerMethodField()
 
     def get_row(self, obj):
-        category = self.context.get('category')
-        qs = AttributeOption.objects.filter(category_id__slug=category,type_id=obj)
-        return self.OptionSerializer(qs, many=True).data
+        options = getattr(obj, 'options', [])
+        return self.OptionSerializer(options, many=True).data
+        # category = self.context.get('category')
+        # qs = AttributeOption.objects.filter(category_id__slug=category,type_id=obj).only('type_id', 'option_name')
+        # return self.OptionSerializer(qs, many=True).data
 
     class Meta:
         model = AttributeType
@@ -86,10 +91,11 @@ class FullProductItemSerializer(serializers.ModelSerializer):
     configuration = serializers.SerializerMethodField()
 
     def get_configuration(self, obj):
-        return obj.attribute\
-           .filter(type_id = 'storage')\
-           .values_list('option_name', flat=True)\
-           .first()
+        return obj.name.split(', ')[1]
+        # return obj.attribute\
+        #    .filter(type_id = 'storage')\
+        #    .values_list('option_name', flat=True)\
+        #    .first()
     def get_attributes(self, obj:ProductItem):
         return {option.type_id.type: option.option_name for option in obj.attribute.all()}
 
@@ -112,10 +118,7 @@ class ShortProductItemSerializer(serializers.ModelSerializer):
     configuration = serializers.SerializerMethodField()
 
     def get_configuration(self, obj):
-        return obj.attribute\
-           .filter(type_id = 'storage')\
-           .values_list('option_name', flat=True)\
-           .first()
+        return obj.name.split(', ')[1]
 
     class Meta:
         model = ProductItem

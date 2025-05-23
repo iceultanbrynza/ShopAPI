@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Prefetch
 
 from rest_framework import generics
 from rest_framework.views import APIView
@@ -76,8 +77,12 @@ class SearchAndFilterProductItems(generics.ListAPIView):
 
         pfilter = self.request.query_params.get('pfilter', None)
         if pfilter is not None:
-            filter = AttributeType.objects.prefetch_related('options', 'options__category_id').\
-                    filter(options__category_id__slug=pfilter).distinct()
+            attribute_options_qs = AttributeOption.objects.filter(category_id__slug=pfilter).only('type_id', 'option_name')
+
+            filter = AttributeType.objects.prefetch_related(Prefetch(
+                'options',
+                queryset=attribute_options_qs
+            )).all()
 
             filter_data = FilterSerializer(filter, many=True, context={'category': pfilter}).data
 
@@ -99,19 +104,20 @@ class RetrieveProductItem(generics.RetrieveAPIView):
     serializer_class = FullProductItemSerializer
 
     def get_object(self):
-        return ProductItem.objects.get(slug=self.kwargs['item_slug'])
+        return ProductItem.objects.prefetch_related('attribute__type_id').get(slug=self.kwargs['item_slug'])
 
     def retrieve(self, request, *args, **kwargs):
         query_set = self.get_object()
-        product = self.get_serializer(query_set).data
+        product_item = self.get_serializer(query_set).data
 
         parent = self.kwargs['product_slug']
-        familyset = Product.objects.get(slug=parent).items.all()
+        product = Product.objects.get(slug=parent)
+        familyset = product.items.all()
         family = ShortProductItemSerializer(familyset, many=True).data
 
         category_slug = self.kwargs['category_slug']
-        category_name = query_set.product_id.name
-        product_name = query_set.product_id.category_id.name
+        category_name = product.category_id.name
+        product_name = product.name
         product_slug = self.kwargs['product_slug']
         slug = query_set.slug
         name = query_set.name
@@ -134,7 +140,7 @@ class RetrieveProductItem(generics.RetrieveAPIView):
 
         return Response({
             'breadcrumbs': breadcrumbs,
-            'product': product,
+            'product': product_item,
             'family': family,
             'header&footer': header
         })

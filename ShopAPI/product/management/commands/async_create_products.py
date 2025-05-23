@@ -96,8 +96,8 @@ class Command(BaseCommand):
         )
         loop.close()
 
-        self.create_categories()
-        self.create_attributes_for_filtering()
+        # self.create_categories()
+        # self.create_attributes_for_filtering()
         self.create_products(data['categories'], devices)
         self.create_product_items(data['products'], data['items'], base_image_url, ending)
 
@@ -147,8 +147,7 @@ class Command(BaseCommand):
         for device in devices:
             slug = device['url'].split('/')[1]
             category_id = Category.objects.get(name=block['name'].split(' ')[0])
-            name_list = re.findall(r'\b[a-zA-Z]+\b', device['name'])
-            name = ' '.join(name_list)
+            name = device['name'].split(' в ')[0]
             discount = 0
             product = Product.objects.create(slug=slug,
                                             category_id=category_id,
@@ -216,22 +215,26 @@ class Command(BaseCommand):
         display = cpu = ram = filename = filename_base = None
 
         attributes = item_data['product'].get('attributes', {})
-
+        print(attributes)
         # Пытаемся получить атрибуты, как у iPhone
-        if 'Размер дисплея' in attributes.get('Дисплей', {}):
-            display = attributes['Дисплей']['Размер дисплея']
+        if 'Размер дисплея' in attributes.get('Экран', {}):
+            display = attributes['Экран']['Размер дисплея']
             filename_base = f"{display.replace('\"', '')}/{color.replace(' ', '_')}"
 
         # Как у Mac
-        elif 'Диагональ экрана' in attributes.get('Дисплей', {}) or 'Видимая диагональ экрана' in attributes.get('Дисплей', {}):
-            display = attributes['Дисплей'].get('Диагональ экрана') or attributes['Дисплей'].get('Видимая диагональ экрана')
+        elif 'Диагональ экрана' in attributes.get('Экран', {}) or 'Видимая диагональ экрана' in attributes.get('Экран', {}):
+            display = attributes['Экран'].get('Диагональ экрана') or attributes['Экран'].get('Видимая диагональ экрана')
             cpu = attributes['Процессор']['Процессор']
             ram = attributes['Память'].get('Объём оперативной памяти') or attributes['Память'].get('Емкость установленной оперативной памяти')
             filename_base = f"{'_'.join(cpu.split()[:2])}/{display.replace('\"', '')}/{color.replace(' ', '_')}"
 
-        # Как у iPad
-        else:
+        elif series:
             filename_base = f"{series.replace(' ', '_')}/{color.replace(' ', '_')}"
+        # else:
+        #     print(f"[WARN] Не удалось определить тип устройства: {item_data['product'].get('title')}")
+        #     return
+        # Как у iPad
+
 
         if storage:
             storage_type = AttributeType.objects.get(type='storage')
